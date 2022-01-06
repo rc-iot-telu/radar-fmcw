@@ -2,31 +2,13 @@ from PyQt5.QtWidgets import (
     QDesktopWidget, QGridLayout, QGroupBox,
     QLabel, QLineEdit, QMainWindow, 
     QPlainTextEdit, QPushButton, 
-    QVBoxLayout, QWidget,
+    QWidget,
 )
 
-from .core import TWRRespirationDetection
+from .core import TWRRespirationDetection, RespiroAppr
 from .config import serial_port
 from .contrib import list_com_port, set_serial_port
 
-class TWRWindow(QWidget):
-    def __init__(self) -> None:
-        super().__init__()
-
-        layout = QVBoxLayout()
-
-        self.setLayout(layout)
-        self.setFocus()
-
-        self.twr = TWRRespirationDetection(serial_port, 9600)
-        self.twr.run()
-
-class RespirationWindow(QWidget):
-    def __init__(self) -> None:
-        super().__init__()
-
-        layout = QVBoxLayout()
-        self.setLayout(layout)
 
 class WindowApp(QMainWindow):
 
@@ -62,6 +44,7 @@ class WindowApp(QMainWindow):
         braspiro = QPushButton("Raspiro Meter")
         btwr = QPushButton("TWR Respiration Detection")
         btwr.clicked.connect(self._twr_launcher)
+        braspiro.clicked.connect(self._respiro_launcher)
 
         h_box = QGridLayout()
         h_box.addWidget(braspiro, 0, 0)
@@ -105,9 +88,13 @@ class WindowApp(QMainWindow):
         group_box.setLayout(grid)
         return group_box
 
-    def _twr_launcher(self, checked) -> None:
-        self.twr_window = TWRWindow()
-        self.twr_window.show()
+    def _twr_launcher(self) -> None:
+        dialog = TWRRespirationDetection(self.port_number.text(), 9600, self)
+        dialog.exec_()
+
+    def _respiro_launcher(self) -> None:
+        dialog = RespiroAppr(self.port_number.text(), 9600, self)
+        dialog.exec_()
 
     def _refresh_ports_list(self) -> None:
         self.port_list.setPlainText(list_com_port())
