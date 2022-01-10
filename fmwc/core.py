@@ -1,6 +1,7 @@
 import logging
 import time
 import ast
+from io import BytesIO
 
 from typing import Union
 
@@ -178,11 +179,10 @@ class RespiroAppr(QDialog):
         self.serial.flushInput()
         self.serial.flushOutput()
 
-        #  self.serial.write(str.encode("oF"))
+        self.serial.write(str.encode("oF"))
         #  time.sleep(0.5)
         self.serial.write(str.encode("oP"))
 
-        # TODO Refactor Me PLSSS
         y_vec = np.linspace(0, 1, 101)[:-1]
         yo_vec = np.linspace(0, 1, 101)[:-1]
         x_vec = np.linspace(0, 1, 101)[:-1]
@@ -205,8 +205,8 @@ class RespiroAppr(QDialog):
                 fft_phase = distance.get("Phase")
 
                 yo_vec[-1] = float(fft_phase[2]) * 57.29
-                #  y_vec[-1] = yo_vec[-1] * 0.0048 + yo_vec[-2] * 0.0195 + yo_vec[-3] * 0.0289 + yo_vec[-4] * 0.0193 + yo_vec[-5] * 0.0048 - y_vec[-1] - y_vec[-2] * -2.3695 - y_vec[-3] * 2.3140 - y_vec[-4] * -1.0547 - y_vec[-5] * 0.1874
                 y_vec[-1] = self._process_data(y_vec, yo_vec)
+                #  print(y_vec[-1], end="\r")
 
                 #  refresh and plot the data
                 ax.clear()
