@@ -1,11 +1,14 @@
 import logging
 import ast
-from typing import Union
 import time
+import os
+from typing import Union
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QDesktopWidget, QGridLayout, QGroupBox,
-    QLabel, QMainWindow,QPushButton, QWidget,
+    QLabel, QLineEdit, QMainWindow,QPushButton,
+    QRadioButton, QWidget,
 )
 
 import matplotlib.pyplot as plt
@@ -16,10 +19,14 @@ import serial
 
 import numpy as np
 
+import pandas as pd
+
 from numba import jit
 
+from openpyxl import Workbook
+
 from . import config
-from .contrib import list_com_port, PortNotFoundWindow, SettingWindow
+from .contrib import list_com_port, ErrorDialog, SettingWindow
 
 class WindowApp(QMainWindow):
     def __init__(self, parent=None) -> None:
@@ -42,10 +49,13 @@ class WindowApp(QMainWindow):
         widget.setLayout(self.grid)
 
         self.grid.addWidget(self._top_button_group(), 0, 0)
-        self.grid.addWidget(self._respiro_graph(), 0, 1)
-        self.grid.addWidget(self._twr_graps(), 1, 1)
+        self.grid.addWidget(self._profile_group(), 1, 0)
+        self.grid.addWidget(self._save_data_group(), 2, 0)
 
-        self.grid.setColumnStretch(1, 2)
+        self.grid.addWidget(self._respiro_graph(), 0, 1,)
+        self.grid.addWidget(self._twr_graps(), 1, 1, 2, 1)
+
+        self.grid.setColumnStretch(1, 3)
 
         self.setCentralWidget(widget)
         self.showMaximized()
@@ -59,8 +69,56 @@ class WindowApp(QMainWindow):
 
         super(WindowApp, self).closeEvent(evnt)
 
-    def _save_data(self):
-        pass
+    def _save_respiro_data(self) -> None:
+        dest_path = os.path.expanduser(f"~\\Documents\\Data Respiro_{self.file_name.text()}.xlsx")
+
+        wb = Workbook()
+        ws = wb.active
+
+        ws['A1'] = f'Nama Pasien: {self.input_name.text()}'
+        ws['A2'] = f'Usia Pasien: {self.input_age.text()}'
+        ws['A3'] = f'Jenis Kelamin: {self.input_sex.text()}'
+
+        wb.save(dest_path)
+
+        try:
+            if self.radio_resp.isChecked():
+                data = pd.DataFrame({
+                    "Respiro": self.y_vec,
+                })
+            else:
+                data = pd.DataFrame({
+                    "Respiro": self.fft_mag,
+                })
+            data.to_excel(dest_path)
+        except AttributeError as e:
+            error_dialog = ErrorDialog(f"Tidak ada data yang ditangkap: {e}", "Data Error", self)
+            error_dialog.exec_()
+
+    def _profile_group(self):
+        group_box = QGroupBox("Identitas Pasien")
+        layout = QGridLayout()
+
+        label_name = QLabel("Pasien Atas Nama: ")
+        self.input_name = QLineEdit()
+
+        label_age = QLabel("Usia Pasien: ")
+        self.input_age = QLineEdit()
+
+        label_sex = QLabel("Jenis Kelamin: ")
+        self.input_sex = QLineEdit()
+
+        layout.addWidget(label_name, 0, 0)
+        layout.addWidget(self.input_name, 0, 1)
+
+        layout.addWidget(label_age, 1, 0)
+        layout.addWidget(self.input_age, 1, 1)
+
+        layout.addWidget(label_sex, 2, 0)
+        layout.addWidget(self.input_sex, 2, 1)
+
+        group_box.setLayout(layout)
+        return group_box
 
     def _top_button_group(self) -> QWidget:
         group_box = QGroupBox("Menu Program")
@@ -74,6 +132,8 @@ class WindowApp(QMainWindow):
         bsetting.clicked.connect(self._launch_setting)
 
         h_box = QGridLayout()
+        h_box.setAlignment(Qt.AlignTop)
+
         h_box.addWidget(bstart, 0, 0)
         h_box.addWidget(bstop, 0, 1)
         h_box.addWidget(bsetting, 1, 0, 1, 2)
@@ -82,6 +142,36 @@ class WindowApp(QMainWindow):
             3, 0, 1, 2)
 
         group_box.setLayout(h_box)
+        return group_box
+
+    def _save_data_group(self):
+        group_box = QGroupBox("Simpan Data Respiro")
+
+        bsave = QPushButton("Simpan Data")
+        
+        file_name_label = QLabel("Masukan Nama File")
+        self.file_name = QLineEdit()
+
+        radio_label = QLabel("Silahkan pilih data yang akan disimpan", self)
+        self.radio_fft = QRadioButton("Data Magnitude &FFT", self)
+        self.radio_resp = QRadioButton("Data &Respiro", self)
+        self.radio_resp.toggle()
+
+        layout = QGridLayout()
+        layout.setAlignment(Qt.AlignTop)
+
+        layout.addWidget(file_name_label, 0, 0)
+        layout.addWidget(self.file_name, 0, 1)
+
+        layout.addWidget(radio_label, 1, 0, 1, 2)
+        layout.addWidget(self.radio_fft, 2, 0)
+        layout.addWidget(self.radio_resp, 2, 1)
+
+        layout.addWidget(bsave, 3, 0, 1, 2)
+
+        bsave.clicked.connect(self._save_respiro_data)
+
+        group_box.setLayout(layout)
         return group_box
 
     def _start_process(self):
@@ -109,8 +199,7 @@ class WindowApp(QMainWindow):
                 bytesize=serial.SEVENBITS
             )
         except serial.SerialException as e:
-            print(e)
-            error_window = PortNotFoundWindow(self)
+            error_window = ErrorDialog(f"Error Serial Port: {e}", "Serial Port Not Found", self)
             error_window.exec_()
 
     def _twr_graps(self):
@@ -153,7 +242,6 @@ class WindowApp(QMainWindow):
     @jit(nopython=True)
     def _process_data_respiro(y_vec, yo_vec):
         # Get ready for a loooong calculation
-        # Not me, blame to other
         return yo_vec[-1] * 0.0048 + yo_vec[-2] * 0.0195 + yo_vec[-3] * 0.0289 + yo_vec[-4] * 0.0193 + yo_vec[-5] * 0.0048 - y_vec[-1] - y_vec[-2] * -2.3695 - y_vec[-3] * 2.3140 - y_vec[-4] * -1.0547 - y_vec[-5] * 0.1874
 
     def _get_data_respiro(self):
@@ -177,9 +265,9 @@ class WindowApp(QMainWindow):
         time.sleep(0.5)
         self.serial.write(str.encode("oP"))
 
-        y_vec = np.linspace(0, 1, 101)[:-1]
-        yo_vec = np.linspace(0, 1, 101)[:-1]
-        x_vec = np.linspace(0, 1, 101)[:-1]
+        self.y_vec = np.linspace(0, 0, 51)[:-1]
+        yo_vec = np.linspace(0, 1, 51)[:-1]
+        x_vec = np.linspace(0, 1, 51)[:-1]
 
         while self.start_get_data:
 
@@ -188,7 +276,7 @@ class WindowApp(QMainWindow):
 
             try:
                 distance = ast.literal_eval(self.serial.readline().decode("utf-8"))
-            except SyntaxError:
+            except (SyntaxError, UnicodeDecodeError):
                 continue
 
             if isinstance(distance, tuple):
@@ -196,31 +284,31 @@ class WindowApp(QMainWindow):
                 pass
             elif isinstance(distance, dict):
                 fft_phase = distance.get("Phase")
-                fft_mag = distance.get("FFT") 
+                self.fft_mag = distance.get("FFT") 
 
                 if fft_phase:
                     yo_vec[-1] = float(fft_phase[2]) * 57.29
-                    y_vec[-1] = self._process_data_respiro(y_vec, yo_vec)
-                    #  print(y_vec[-1], end="\r")
+                    self.y_vec[-1] = self._process_data_respiro(self.y_vec, yo_vec)
+                    #  print(self.y_vec[-1], end="\r")
 
                     #  refresh and plot the data
                     ax_reps.clear()
 
-                    line1, = ax_reps.plot(x_vec, y_vec, '-o', alpha=0.8)
-                    line1.set_ydata(y_vec)
+                    line1, = ax_reps.plot(x_vec, self.y_vec, '-o', alpha=0.8)
+                    line1.set_ydata(self.y_vec)
 
-                    if np.min(y_vec) <= line1.axes.get_ylim()[0] or np.max(y_vec) >= line1.axes.get_ylim()[1]:
-                        plt.ylim([np.min(y_vec) - np.std(y_vec), np.max(y_vec) + np.std(y_vec)])
+                    if np.min(self.y_vec) <= line1.axes.get_ylim()[0] or np.max(self.y_vec) >= line1.axes.get_ylim()[1]:
+                        plt.ylim([np.min(self.y_vec) - np.std(self.y_vec), np.max(self.y_vec) + np.std(self.y_vec)])
 
                     # refresh canvas
                     self.canvas_resp.draw_idle()
                     self.canvas_resp.flush_events()
 
-                    y_vec = np.append(y_vec[1:],0.0)
+                    self.y_vec = np.append(self.y_vec[1:],0.0)
 
-                elif fft_mag:
+                elif self.fft_mag:
                     ax_twr.clear()
-                    ax_twr.plot(fft_mag)
+                    ax_twr.plot(self.fft_mag[:100])
 
                     self.canvas_twr.draw_idle()
                     self.canvas_twr.flush_events()

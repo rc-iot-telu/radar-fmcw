@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import (
     QDialog, QGridLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit,
     QPlainTextEdit, QPushButton, 
-    
 )
 
 from . import config
@@ -23,15 +22,15 @@ def list_com_port() -> str:
 def setting_serial_port(port: str) -> None:
     config.serial_port = port
 
-class PortNotFoundWindow(QDialog):
-    def __init__(self, parent=None) -> None:
-        super(PortNotFoundWindow, self).__init__(parent)
+class ErrorDialog(QDialog):
+    def __init__(self, error_msg:str, error_title: str, parent=None) -> None:
+        super(ErrorDialog, self).__init__(parent)
 
-        self.setWindowTitle("Error Serial Port")
+        self.setWindowTitle(error_title)
+        self.resize(220, 100)
 
         layout = QHBoxLayout()
-
-        layout.addWidget(QLabel("Serial Port Not Found!"))
+        layout.addWidget(QLabel(error_msg))
 
         self.setLayout(layout)
 
