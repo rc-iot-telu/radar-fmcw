@@ -88,7 +88,7 @@ class WindowApp(QMainWindow):
                 })
             else:
                 data = pd.DataFrame({
-                    "Respiro": self.fft_mag,
+                    "FFt Magnitude": self.fft_mag,
                 })
             data.to_excel(dest_path)
         except AttributeError as e:
