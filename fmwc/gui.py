@@ -71,16 +71,17 @@ class WindowApp(QMainWindow):
         super(WindowApp, self).closeEvent(evnt)
 
     def _save_respiro_data(self) -> None:
-        dest_path = os.path.expanduser(f"~\\Documents\\Data Respiro_{self.file_name.text()}.xlsx")
+        #  dest_path = os.path.expanduser(f"~\\Documents\\Data Respiro_{self.file_name.text()}.xlsx")
+        dest_path = os.path.expanduser(f"~\\Documents\\Data_{self.file_name.text()}.csv")
 
-        wb = Workbook()
-        ws = wb.active
+        #  wb = Workbook()
+        #  ws = wb.active
 
-        ws['A1'] = f'Nama Pasien: {self.input_name.text()}'
-        ws['A2'] = f'Usia Pasien: {self.input_age.text()}'
-        ws['A3'] = f'Jenis Kelamin: {self.input_sex.text()}'
+        #  ws['A1'] = f'Nama Pasien: {self.input_name.text()}'
+        #  ws['A2'] = f'Usia Pasien: {self.input_age.text()}'
+        #  ws['A3'] = f'Jenis Kelamin: {self.input_sex.text()}'
 
-        wb.save(dest_path)
+        #  wb.save(dest_path)
 
         try:
             if self.radio_resp.isChecked():
@@ -89,9 +90,9 @@ class WindowApp(QMainWindow):
                 })
             else:
                 data = pd.DataFrame({
-                    "FFt Magnitude": self.fft_mag,
+                    "FFt Magnitude": self.twr_out,
                 })
-            data.to_excel(dest_path)
+            data.to_csv(dest_path)
         except AttributeError as e:
             error_dialog = ErrorDialog(f"Tidak ada data yang ditangkap: {e}", "Data Error", self)
             error_dialog.exec_()
@@ -269,11 +270,12 @@ class WindowApp(QMainWindow):
         time.sleep(0.5)
         self.serial.write(str.encode("oP"))
 
-        y_vec = np.linspace(0, 0, 51)[:-1]
-        yo_vec = np.linspace(0, 1, 51)[:-1]
-        x_vec = np.linspace(0, 1, 51)[:-1]
+        y_vec = np.linspace(0, 0, 512)[:-1]
+        yo_vec = np.linspace(0, 1, 512)[:-1]
+        x_vec = np.linspace(0, 1, 512)[:-1]
 
         self.respiro_out = []
+        self.twr_out = []
 
         while self.start_get_data:
 
@@ -296,14 +298,15 @@ class WindowApp(QMainWindow):
                 if fft_phase:
                     yo_vec[-1] = float(fft_phase[2]) * 57.29
                     y_vec[-1] = self._process_data_respiro(y_vec, yo_vec)
-                    self.respiro_out.append(y_vec[-1])
+
+                    self.respiro_out.append(fft_phase)
                     #  print(y_vec[-1], end="\r")
 
                     #  refresh and plot the data
                     ax_reps.clear()
 
-                    line1, = ax_reps.plot(x_vec, y_vec, '-o', alpha=0.8)
-                    line1.set_ydata(y_vec[:50])
+                    line1, = ax_reps.plot(x_vec[462:], y_vec[462:], '-o', alpha=0.8)
+                    line1.set_ydata(y_vec[462:])
 
                     if np.min(y_vec) <= line1.axes.get_ylim()[0] or np.max(y_vec) >= line1.axes.get_ylim()[1]:
                         plt.ylim([np.min(y_vec) - np.std(y_vec), np.max(y_vec) + np.std(y_vec)])
@@ -317,6 +320,7 @@ class WindowApp(QMainWindow):
                     #  print(len(y_vec), end="\r")
 
                 elif self.fft_mag:
+                    self.twr_out.append(self.fft_mag)
                     ax_twr.clear()
                     ax_twr.plot(self.fft_mag[:100])
 
@@ -331,6 +335,4 @@ class WindowApp(QMainWindow):
 
     def _stop_get_data(self) -> None:
         self.start_get_data = False
-
-
 
