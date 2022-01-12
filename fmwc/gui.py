@@ -299,7 +299,7 @@ class WindowApp(QMainWindow):
                     yo_vec[-1] = float(fft_phase[2]) * 57.29
                     y_vec[-1] = self._process_data_respiro(y_vec, yo_vec)
 
-                    self.respiro_out.append(fft_phase)
+                    self.respiro_out.append(fft_phase[:512])
                     #  print(y_vec[-1], end="\r")
 
                     #  refresh and plot the data
@@ -320,7 +320,7 @@ class WindowApp(QMainWindow):
                     #  print(len(y_vec), end="\r")
 
                 elif self.fft_mag:
-                    self.twr_out.append(self.fft_mag)
+                    self.twr_out.append(self.fft_mag[:512])
                     ax_twr.clear()
                     ax_twr.plot(self.fft_mag[:100])
 
