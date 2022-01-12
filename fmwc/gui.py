@@ -2,6 +2,7 @@ import logging
 import ast
 import time
 import os
+import io
 from typing import Union
 
 from PyQt5.QtCore import Qt
@@ -84,7 +85,7 @@ class WindowApp(QMainWindow):
         try:
             if self.radio_resp.isChecked():
                 data = pd.DataFrame({
-                    "Respiro": self.y_vec,
+                    "Respiro": self.respiro_out,
                 })
             else:
                 data = pd.DataFrame({
@@ -127,6 +128,8 @@ class WindowApp(QMainWindow):
         bstart = QPushButton("Mulai Scan")
         bstop = QPushButton("Stop Scan")
 
+        self.distance_label = QLineEdit("Jarak: 0")
+
         bstart.clicked.connect(self._start_process)
         bstop.clicked.connect(self._stop_get_data)
         bsetting.clicked.connect(self._launch_setting)
@@ -137,6 +140,7 @@ class WindowApp(QMainWindow):
         h_box.addWidget(bstart, 0, 0)
         h_box.addWidget(bstop, 0, 1)
         h_box.addWidget(bsetting, 1, 0, 1, 2)
+        h_box.addWidget(self.distance_label, 2, 0, 1, 2)
         h_box.addWidget(QLabel(
             "Mohon untuk mengcek serial port yang tersedia, setelah serial port sesuai, aplikasi siap dijalankan."),
             3, 0, 1, 2)
@@ -265,9 +269,11 @@ class WindowApp(QMainWindow):
         time.sleep(0.5)
         self.serial.write(str.encode("oP"))
 
-        self.y_vec = np.linspace(0, 0, 51)[:-1]
+        y_vec = np.linspace(0, 0, 51)[:-1]
         yo_vec = np.linspace(0, 1, 51)[:-1]
         x_vec = np.linspace(0, 1, 51)[:-1]
+
+        self.respiro_out = []
 
         while self.start_get_data:
 
@@ -281,30 +287,34 @@ class WindowApp(QMainWindow):
 
             if isinstance(distance, tuple):
                 #  print("Jarak:", distance[1], end="\r")
-                pass
+                self.distance_label.setText(f"Jarak: {distance[1]}")
+                #  pass
             elif isinstance(distance, dict):
                 fft_phase = distance.get("Phase")
                 self.fft_mag = distance.get("FFT") 
 
                 if fft_phase:
                     yo_vec[-1] = float(fft_phase[2]) * 57.29
-                    self.y_vec[-1] = self._process_data_respiro(self.y_vec, yo_vec)
-                    #  print(self.y_vec[-1], end="\r")
+                    y_vec[-1] = self._process_data_respiro(y_vec, yo_vec)
+                    self.respiro_out.append(y_vec[-1])
+                    #  print(y_vec[-1], end="\r")
 
                     #  refresh and plot the data
                     ax_reps.clear()
 
-                    line1, = ax_reps.plot(x_vec, self.y_vec, '-o', alpha=0.8)
-                    line1.set_ydata(self.y_vec)
+                    line1, = ax_reps.plot(x_vec, y_vec, '-o', alpha=0.8)
+                    line1.set_ydata(y_vec[:50])
 
-                    if np.min(self.y_vec) <= line1.axes.get_ylim()[0] or np.max(self.y_vec) >= line1.axes.get_ylim()[1]:
-                        plt.ylim([np.min(self.y_vec) - np.std(self.y_vec), np.max(self.y_vec) + np.std(self.y_vec)])
+                    if np.min(y_vec) <= line1.axes.get_ylim()[0] or np.max(y_vec) >= line1.axes.get_ylim()[1]:
+                        plt.ylim([np.min(y_vec) - np.std(y_vec), np.max(y_vec) + np.std(y_vec)])
 
                     # refresh canvas
                     self.canvas_resp.draw_idle()
                     self.canvas_resp.flush_events()
 
-                    self.y_vec = np.append(self.y_vec[1:],0.0)
+                    y_vec = np.append(y_vec[1:], 0.0)
+                    #  np.stack([0], y_vec)
+                    #  print(len(y_vec), end="\r")
 
                 elif self.fft_mag:
                     ax_twr.clear()
@@ -313,6 +323,7 @@ class WindowApp(QMainWindow):
                     self.canvas_twr.draw_idle()
                     self.canvas_twr.flush_events()
 
+        #  print(self.respiro_out)
         self.serial.close()
 
     def _refresh_ports_list(self) -> None:
