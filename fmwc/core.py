@@ -1,151 +1,259 @@
 import logging
-import time
 import ast
-from io import BytesIO
+import time
+import os
+import csv
 
+from datetime import datetime
 from typing import Union
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QDialog, QGridLayout, QLineEdit, QPushButton,
-    QWidget, QGroupBox, QLabel
+    QGridLayout, QGroupBox, QLabel, QLineEdit,
+    QMainWindow,QPushButton, QWidget,
 )
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolBar
 
 import serial
 
 import numpy as np
 
+import pandas as pd
+
 from numba import jit
 
-class TWRRespirationDetection(QDialog):
-    def __init__(self, serial_port: str, baudrate: int, parent=None) -> None:
-        super(TWRRespirationDetection, self).__init__(parent)
+from . import config
+from .contrib import list_com_port, PopUpDialog, SettingWindow
 
-        self.setWindowTitle("TWR Respiration Detection")
+class WindowApp(QMainWindow):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
 
-        self.serial = serial.Serial(
-            port=serial_port,
-            baudrate=baudrate,
-            parity=serial.PARITY_ODD,
-            stopbits=serial.STOPBITS_TWO,
-            bytesize=serial.SEVENBITS
+        self.setWindowTitle("FMWC Radar Launcher")
+        self.resize(640, 480)
+        
+        self.start_get_data = True
+
+        self.grid = QGridLayout()
+
+        widget = QWidget()
+        widget.setStyleSheet(
+            """
+            QWidget {
+                background: #fffdfa;
+            }
+            """
         )
 
-        self.figure = plt.figure()
-        self.canvas = FigureCanvas(self.figure)
-        self.toolbar = NavigationToolBar(self.canvas, self)
+        self.grid.addWidget(self._top_button_group(), 0, 0)
+        #  self.grid.addWidget(self._save_data_group(), 1, 0)
 
-        # set the layout
-        layout = QGridLayout()
+        self.grid.addWidget(self._respiro_graph(), 0, 1)
+        self.grid.addWidget(self._twr_graps(), 1, 1)
 
-        layout.addWidget(self.toolbar, 0, 0)
-        layout.addWidget(self.canvas, 1, 0)
-        layout.addWidget(self._setting_group(), 2, 0)
-        self.setLayout(layout)
+        self.grid.setColumnStretch(1, 2)
+
+        widget.setLayout(self.grid)
+        self.setCentralWidget(widget)
 
     def closeEvent(self, evnt) -> None:
-        self.serial.close()
-        time.sleep(4)
-        super(TWRRespirationDetection, self).closeEvent(evnt)
 
-    def _setting_group(self) -> QWidget:
-        group_box = QGroupBox("Setting Pengambilan Data")
+        try:
+            self.serial.close()
+        except AttributeError:
+            pass
 
-        loop_counter_label = QLabel("Berapa Kali Scan: ")
-        self.loop_counter = QLineEdit(self)
-        self.loop_counter.setText("10")
+        super(WindowApp, self).closeEvent(evnt)
 
-        self.run_button = QPushButton("Mulai Scan!")
-        self.run_button.clicked.connect(self._get_data)
+    def _save_respiro_data(self) -> None:
+        now = datetime.now().strftime("%D/%M/%YYYY %H.%M.%S")
 
-        h_box = QGridLayout()
-        h_box.addWidget(loop_counter_label, 0, 0)
-        h_box.addWidget(self.loop_counter, 0, 1)
-        h_box.addWidget(self.run_button, 1, 0)
-        #  h_box.addWidget(QLabel("Silahkan memilih program yang ingin dijalankan."), 1, 0, 1, 2)
+        try:
+            if self.respiro_out and self.twr_out:
+                pass
+        except AttributeError:
+            PopUpDialog("Tidak ada data yang di ambil.", "ERROR: Data kosong", self).exec() 
+            return
 
-        group_box.setLayout(h_box)
+        dest_path_resp = os.path.expanduser(f"~\\Documents\\Data_Respirasi_{now}.csv")
+        dest_path_fft = os.path.expanduser(f"~\\Documents\\Data_FFT{now}.csv")
+
+        if os.path.exists(dest_path_resp) or os.path.exists(dest_path_fft):
+            PopUpDialog(
+                "File dengan nama yang diinput telah ada, silahkan gunakan nama lain",
+                "ERROR: File Exist",
+                self
+            ).exec()
+            return
+        try:
+            # Save data respirasi
+            with open(dest_path_resp, 'w', newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                for data in self.respiro_out:
+                    writer.writerow(data)
+
+            # Save data twr
+            with open(dest_path_fft, 'w') as csvfile:
+                writer = csv.writer(csvfile)
+                for data in self.twr_out:
+                    writer.writerow(data)
+
+            # Show "Success" dialog
+            PopUpDialog("Berhasil menyimpan Data", "Simpan Data Berhasil", self).exec() 
+
+        except AttributeError as e:
+            PopUpDialog(f"Tidak ada data yang ditangkap: {e}", "Data Error", self).exec()
+
+    def _top_button_group(self) -> QWidget:
+        group_box = QGroupBox("Menu Program")
+
+        bsetting = QPushButton("Setting")
+        bsetting.setStyleSheet(
+            """
+            QPushButton {
+                background: #FFE9CD;
+                color: #000;
+                border: 0px;
+            }
+            QPushButton:hover {
+                background: #FFDBAE;
+            }
+            """
+        )
+        bstart = QPushButton("Mulai Scan")
+        bstart.setStyleSheet(
+            """
+            QPushButton {
+                background: #BFE9FF;
+                color: #000;
+                border: 0px;
+            }
+            QPushButton:hover {
+                background: #AAD0E3;
+            }
+            """
+        )
+        bstop = QPushButton("Stop Scan")
+        bstop.setStyleSheet(
+            """
+            QPushButton {
+                background: #F8D7D0;
+                color: #000;
+                border: 0px;
+            }
+            QPushButton:hover {
+                background: #F19CA2;
+            }
+            """
+        )
+        bsave = QPushButton("Save Data")
+        bsave.setStyleSheet(
+            """
+            QPushButton {
+                background: #B7D7D9;
+                color: #000;
+                border: 0px;
+            }
+            QPushButton:hover {
+                background: #95D5D9;
+            }
+            """
+        )
+
+        self.distance_label = QLineEdit("Jarak: 0")
+
+        bstart.clicked.connect(self._start_process)
+        bstop.clicked.connect(self._stop_get_data)
+        bsetting.clicked.connect(self._launch_setting)
+        bsave.clicked.connect(self._save_respiro_data)
+
+        layout = QGridLayout()
+        layout.setAlignment(Qt.AlignTop)
+
+        layout.addWidget(bstart)
+        layout.addWidget(bstop)
+        layout.addWidget(bsetting)
+        layout.addWidget(bsave)
+        layout.addWidget(self.distance_label)
+
+        group_box.setLayout(layout)
         return group_box
 
-    def _get_data(self) -> Union[None, np.ndarray]:
+    def _save_data_group(self):
+        group_box = QGroupBox("Simpan Data Respiro")
 
-        if not self.serial.isOpen():
-            logging.info("[INFO] Trying to open the port...")
-            self.serial.open()
+        bsave = QPushButton("Simpan Data")
+        
+        file_name_label = QLabel("Masukan Nama File")
+        self.file_name = QLineEdit()
 
-        # instead of ax.hold(False)
-        self.figure.clear()
-
-        # create an axis
-        ax = self.figure.add_subplot(111)
-
-        # Do some clean up, just to make sure
-        self.serial.flushInput()
-        self.serial.flushOutput()
-
-        self.serial.write(str.encode("oF"))
-        #  self.serial.write(str.encode("oP"))
-
-        self.run_button.setEnabled(False)
-        for _ in range(int(self.loop_counter.text())):
-            distance = ast.literal_eval(self.serial.readline().decode("utf-8"))
-
-            if isinstance(distance, tuple):
-                print("Jarak:", distance[1], end="\r")
-            elif isinstance(distance, dict):
-                fft_mag = np.asarray(distance.get("FFT"), dtype=np.float64)
-
-                # refresh and plot the data
-                ax.clear()
-                ax.plot(fft_mag)
-
-                # refresh canvas
-                self.canvas.draw()
-                self.canvas.draw_idle()
-                self.canvas.flush_events()
-
-        self.serial.close()
-        time.sleep(4) # sleep for wating the ast really close
-        self.run_button.setEnabled(True)
-
-
-class RespiroAppr(QDialog):
-    def __init__(self, serial_port: str, baudrate: int, parent=None) -> None:
-        super(RespiroAppr, self).__init__(parent)
-
-        self.setWindowTitle("Respiro Appr")
-
-        self.serial = serial.Serial(
-            port=serial_port,
-            baudrate=baudrate,
-            parity=serial.PARITY_ODD,
-            stopbits=serial.STOPBITS_TWO,
-            bytesize=serial.SEVENBITS
-        )
-
-        self.figure = plt.figure()
-        self.canvas = FigureCanvas(self.figure)
-        self.toolbar = NavigationToolBar(self.canvas, self)
-
-        # set the layout
         layout = QGridLayout()
+        layout.setAlignment(Qt.AlignTop)
 
-        btn = QPushButton("Mulai!")
-        btn.clicked.connect(self._get_data)
+        layout.addWidget(file_name_label, 0, 0)
+        layout.addWidget(self.file_name, 0, 1)
 
-        layout.addWidget(self.toolbar, 0, 0)
-        layout.addWidget(self.canvas, 1, 0)
-        layout.addWidget(btn, 2, 0)
+        layout.addWidget(bsave, 1, 0, 1, 2)
 
-        self.setLayout(layout)
+        bsave.clicked.connect(self._save_respiro_data)
 
-    def closeEvent(self, evnt) -> None:
-        self.serial.close()
-        time.sleep(4)
-        super(RespiroAppr, self).closeEvent(evnt)
+        group_box.setLayout(layout)
+        return group_box
+
+    def _start_process(self):
+        self._set_serial_port()
+        try:
+
+            if not self.start_get_data:
+                self.start_get_data = True
+
+            self._get_data_respiro()
+        except AttributeError:
+            pass
+
+    def _launch_setting(self):
+        dialog = SettingWindow(self)
+        dialog.exec_()
+
+    def _set_serial_port(self):
+        try:
+            self.serial = serial.Serial(
+                port=config.serial_port,
+                baudrate=9600,
+                parity=serial.PARITY_ODD,
+                stopbits=serial.STOPBITS_TWO,
+                bytesize=serial.SEVENBITS
+            )
+        except serial.SerialException as e:
+            PopUpDialog(f"Error Serial Port: {e}", "Serial Port Not Found", self).exec()
+
+    def _twr_graps(self):
+        group_box = QGroupBox("TWR Graph")
+
+        self.figure_twr = plt.figure()
+        self.canvas_twr = FigureCanvas(self.figure_twr)
+
+        grid = QGridLayout()
+        grid.addWidget(self.canvas_twr, 1, 0)
+
+        group_box.setLayout(grid)
+
+        return group_box
+
+    def _respiro_graph(self):
+        group_box = QGroupBox("Respiro Meter")
+
+        self.figure_resp = plt.figure()
+        self.canvas_resp = FigureCanvas(self.figure_resp)
+
+        grid = QGridLayout()
+        grid.addWidget(self.canvas_resp, 1, 0)
+
+        group_box.setLayout(grid)
+
+        return group_box
 
     def _max_index_value(self, ls) -> Union[dict, None]:
         """
@@ -159,68 +267,94 @@ class RespiroAppr(QDialog):
 
     @staticmethod
     @jit(nopython=True)
-    def _process_data(y_vec, yo_vec):
+    def _process_data_respiro(y_vec, yo_vec):
         # Get ready for a loooong calculation
-        # Not me, blame to other
         return yo_vec[-1] * 0.0048 + yo_vec[-2] * 0.0195 + yo_vec[-3] * 0.0289 + yo_vec[-4] * 0.0193 + yo_vec[-5] * 0.0048 - y_vec[-1] - y_vec[-2] * -2.3695 - y_vec[-3] * 2.3140 - y_vec[-4] * -1.0547 - y_vec[-5] * 0.1874
 
-    def _get_data(self):
+    def _get_data_respiro(self):
         if not self.serial.isOpen():
-            logging.info("[INFO] Trying to open the port...")
+            logging.info("[INFO] Open the serial port...")
             self.serial.open()
 
         # instead of ax.hold(False)
-        self.figure.clear()
+        self.figure_resp.clear()
+        self.figure_twr.clear()
 
         # create an axis
-        ax = self.figure.add_subplot(111)
+        ax_reps = self.figure_resp.add_subplot(111)
+        ax_twr = self.figure_twr.add_subplot(111)
 
         # Do some clean up, just to make sure
         self.serial.flushInput()
         self.serial.flushOutput()
 
         self.serial.write(str.encode("oF"))
-        #  time.sleep(0.5)
+        time.sleep(0.5)
         self.serial.write(str.encode("oP"))
 
-        y_vec = np.linspace(0, 1, 101)[:-1]
-        yo_vec = np.linspace(0, 1, 101)[:-1]
-        x_vec = np.linspace(0, 1, 101)[:-1]
+        y_vec = np.linspace(0, 0, 512)[:-1]
+        yo_vec = np.linspace(0, 1, 512)[:-1]
+        x_vec = np.linspace(0, 1, 512)[:-1]
 
-        while True:
+        self.respiro_out = []
+        self.twr_out = []
+
+        while self.start_get_data:
 
             if not self.serial.isOpen():
                 break
 
-            distance = ast.literal_eval(self.serial.readline().decode("utf-8"))
+            try:
+                distance = ast.literal_eval(self.serial.readline().decode("utf-8"))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
 
             if isinstance(distance, tuple):
-                print("Jarak:", distance[1], end="\r")
-                #  pass
+                self.distance_label.setText(f"Jarak: {distance[1]}")
+
             elif isinstance(distance, dict):
-
-                if distance.get("Phase") is None:
-                    continue
-
                 fft_phase = distance.get("Phase")
+                fft_mag = distance.get("FFT")
 
-                yo_vec[-1] = float(fft_phase[2]) * 57.29
-                y_vec[-1] = self._process_data(y_vec, yo_vec)
-                #  print(y_vec[-1], end="\r")
+                if fft_phase and len(self.respiro_out) <= config.number_of_loops:
 
-                #  refresh and plot the data
-                ax.clear()
+                    yo_vec[-1] = float(fft_phase[2]) * 57.29
+                    y_vec[-1] = self._process_data_respiro(y_vec, yo_vec)
 
-                line1, = ax.plot(x_vec, y_vec, '-o', alpha=0.8)
-                line1.set_ydata(y_vec)
+                    self.respiro_out.append(fft_phase[:512])
 
-                if np.min(y_vec) <= line1.axes.get_ylim()[0] or np.max(y_vec) >= line1.axes.get_ylim()[1]:
-                    plt.ylim([np.min(y_vec) - np.std(y_vec), np.max(y_vec) + np.std(y_vec)])
+                    #  refresh and plot the data
+                    ax_reps.clear()
 
-                # refresh canvas
-                self.canvas.draw()
-                self.canvas.draw_idle()
-                self.canvas.flush_events()
+                    line1, = ax_reps.plot(x_vec[462:], y_vec[462:], '-o', alpha=0.8)
+                    line1.set_ydata(y_vec[462:])
 
-                y_vec = np.append(y_vec[1:],0.0)
+                    if np.min(y_vec) <= line1.axes.get_ylim()[0] or np.max(y_vec) >= line1.axes.get_ylim()[1]:
+                        plt.ylim([np.min(y_vec) - np.std(y_vec), np.max(y_vec) + np.std(y_vec)])
+
+                    # refresh canvas
+                    self.canvas_resp.draw_idle()
+                    self.canvas_resp.flush_events()
+
+                    y_vec = np.append(y_vec[1:], 0.0)
+
+                elif fft_mag and len(self.twr_out) <= config.number_of_loops:
+                    self.twr_out.append(fft_mag[:512])
+                    ax_twr.clear()
+                    ax_twr.plot(fft_mag[:100])
+
+                    self.canvas_twr.draw_idle()
+                    self.canvas_twr.flush_events()
+
+                elif len(self.respiro_out) >= config.number_of_loops and len(self.twr_out) >= config.number_of_loops:
+                    self.start_get_data = False
+
+        self.serial.close()
+        PopUpDialog("Selesai mengambil data", "Done Scanning", self).exec()
+
+    def _refresh_ports_list(self) -> None:
+        self.port_list.setPlainText(list_com_port())
+
+    def _stop_get_data(self) -> None:
+        self.start_get_data = False
 

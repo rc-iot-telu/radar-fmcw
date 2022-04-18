@@ -11,6 +11,9 @@ __pycache__/
 # C extensions
 *.so
 
+# My stuff
+radar.zip
+
 # Distribution / packaging
 .Python
 build/

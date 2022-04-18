@@ -1,16 +1,20 @@
 import sys
 
+import qdarktheme
+
 from PyQt5.QtWidgets import QApplication
 
-from fmwc.gui import WindowApp
+from fmwc.core import WindowApp
 
 
 def main(argv):
 
     # Entry point for the window app
     app = QApplication(argv)
+    app.setStyleSheet(qdarktheme.load_stylesheet('light'))
+
     ex = WindowApp()
-    ex.show()
+    ex.showMaximized()
 
     sys.exit(app.exec())
 
