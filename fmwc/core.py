@@ -68,7 +68,7 @@ class WindowApp(QMainWindow):
         super(WindowApp, self).closeEvent(evnt)
 
     def _save_respiro_data(self) -> None:
-        now = datetime.now().strftime("%D/%M/%YYYY %H.%M.%S")
+        now = datetime.now().strftime("%D-%M-%YYYY-%H.%M.%S")
 
         try:
             if self.respiro_out and self.twr_out:
@@ -78,7 +78,7 @@ class WindowApp(QMainWindow):
             return
 
         dest_path_resp = os.path.expanduser(f"~\\Documents\\Data_Respirasi_{now}.csv")
-        dest_path_fft = os.path.expanduser(f"~\\Documents\\Data_FFT{now}.csv")
+        dest_path_fft = os.path.expanduser(f"~\\Documents\\Data_FFT_{now}.csv")
 
         if os.path.exists(dest_path_resp) or os.path.exists(dest_path_fft):
             PopUpDialog(
@@ -230,7 +230,7 @@ class WindowApp(QMainWindow):
             PopUpDialog(f"Error Serial Port: {e}", "Serial Port Not Found", self).exec()
 
     def _twr_graps(self):
-        group_box = QGroupBox("TWR Graph")
+        group_box = QGroupBox("Magnitude")
 
         self.figure_twr = plt.figure()
         self.canvas_twr = FigureCanvas(self.figure_twr)
@@ -243,7 +243,7 @@ class WindowApp(QMainWindow):
         return group_box
 
     def _respiro_graph(self):
-        group_box = QGroupBox("Respiro Meter")
+        group_box = QGroupBox("Phase")
 
         self.figure_resp = plt.figure()
         self.canvas_resp = FigureCanvas(self.figure_resp)
@@ -268,7 +268,6 @@ class WindowApp(QMainWindow):
     @staticmethod
     @jit(nopython=True)
     def _process_data_respiro(y_vec, yo_vec):
-        # Get ready for a loooong calculation
         return yo_vec[-1] * 0.0048 + yo_vec[-2] * 0.0195 + yo_vec[-3] * 0.0289 + yo_vec[-4] * 0.0193 + yo_vec[-5] * 0.0048 - y_vec[-1] - y_vec[-2] * -2.3695 - y_vec[-3] * 2.3140 - y_vec[-4] * -1.0547 - y_vec[-5] * 0.1874
 
     def _get_data_respiro(self):
