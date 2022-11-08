@@ -37,7 +37,7 @@ class PopUpDialog(QDialog):
         layout = QHBoxLayout()
 
         label = QLabel(msg)
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignCenter) # type: ignore
 
         layout.addWidget(label)
 

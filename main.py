@@ -1,4 +1,5 @@
 import sys
+import os
 
 import qdarktheme
 
@@ -8,6 +9,7 @@ from fmwc.core import WindowApp
 
 
 def main(argv):
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
     # Entry point for the window app
     app = QApplication(argv)

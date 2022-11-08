@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Radar FMWC"
-#define MyAppVersion "1.5"
+#define MyAppVersion "1.7"
 #define MyAppPublisher "RC IoT - Telkom University"
 #define MyAppURL "telkomuniversity.ac.id"
 #define MyAppExeName "main.exe"
