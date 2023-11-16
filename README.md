@@ -16,6 +16,7 @@ data tersebut.
 
 1. Pastikan nomor port radar, telah di konfigurasi secara benar.
     - Buka Setting
+      
       ![image](https://github.com/rc-iot-telu/radar-fmcw/assets/60130740/e0c6ea35-6266-47ca-9a0d-44218ad810e7)
 
     - Klik tombol ```Refresh Daftar Port```, lalu akan muncul nomor port (radar) yang terhubung, masukan nomor
