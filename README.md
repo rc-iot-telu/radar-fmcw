@@ -16,3 +16,13 @@ data tersebut.
 
 1. Pastikan nomor port radar, telah di konfigurasi secara benar.
     - Buka Setting
+      ![image](https://github.com/rc-iot-telu/radar-fmcw/assets/60130740/e0c6ea35-6266-47ca-9a0d-44218ad810e7)
+
+    - Klik tombol ```Refresh Daftar Port```, lalu akan muncul nomor port (radar) yang terhubung, masukan nomor
+      port tersebut (hanya tulis "COMXX", XX berarti nomor port), lalu klik ```Simpan Setting```
+      ![image](https://github.com/rc-iot-telu/radar-fmcw/assets/60130740/70025fe1-cad2-45f0-8fde-9705c59b197d)
+
+    - Jika sudah, klik tombol ```Mulai Scan```, jika grafik terjadi perubahan, berarti Anda telah menyeting aplikasi
+      secara benar.
+    - Untuk menyimpan data, klik tombol ```Save Data```, maka data akan tersimpan di dalam folder ```Dokuments``` Anda.
+
