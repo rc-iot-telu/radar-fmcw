@@ -227,6 +227,16 @@ class WindowApp(QMainWindow):
         except serial.SerialException as e:
             PopUpDialog(f"Error Serial Port: {e}", "Serial Port Not Found", self).exec()
 
+    def _max_index_value(self, ls):
+        """
+        return maximum value and it's index from a list
+        """
+
+        maxval = max(ls)
+        idx = ls.index(maxval)
+
+        return maxval, idx
+
     def _twr_graps(self):
         group_box = QGroupBox("Magnitude")
 
@@ -252,16 +262,6 @@ class WindowApp(QMainWindow):
         group_box.setLayout(grid)
 
         return group_box
-
-    def _max_index_value(self, ls) -> Union[dict, None]:
-        """
-        return maximum value and it's index from a list
-        """
-
-        maxval = max(ls)
-        idx = ls.index(maxval)
-
-        return {"val": maxval, "index": idx}
 
     @staticmethod
     @jit(nopython=True)
@@ -296,6 +296,8 @@ class WindowApp(QMainWindow):
         self.respiro_out = []
         self.twr_out = []
 
+        peak_index = -1
+
         while self.start_get_data:
 
             if not self.serial.isOpen():
@@ -318,8 +320,10 @@ class WindowApp(QMainWindow):
                 fft_mag = distance.get("FFT")
 
                 if fft_phase and len(self.respiro_out) <= config.number_of_loops:
+                    if peak_index < 0:
+                        continue
 
-                    yo_vec[-1] = float(fft_phase[2]) * 57.29
+                    yo_vec[-1] = float(fft_phase[peak_index]) * 57.29
                     y_vec[-1] = self._process_data_respiro(y_vec, yo_vec)
 
                     self.respiro_out.append(fft_phase[:512])
@@ -340,7 +344,10 @@ class WindowApp(QMainWindow):
                     y_vec = np.append(y_vec[1:], 0.0)
 
                 elif fft_mag and len(self.twr_out) <= config.number_of_loops:
+                    _, peak_index = self._max_index_value(fft_mag[:512])
+
                     self.twr_out.append(fft_mag[:512])
+
                     ax_twr.clear()
                     ax_twr.plot(fft_mag[:100])
 
